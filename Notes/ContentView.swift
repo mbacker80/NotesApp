@@ -6,23 +6,35 @@
 //
 
 import SwiftUI
+import Foundation
 
-struct Note: Identifiable
+struct Note: Identifiable, Codable
 {
     var id = UUID()
     var title: String
     var content: String
     var isCompleted: Bool = false
+    
+    init(id: UUID = UUID(), title: String, content: String, isCompleted: Bool = false)
+    {
+        self.id = id
+        self.title = title
+        self.content = content
+        self.isCompleted = isCompleted
+    }
 }
 
 class NotesViewModel: ObservableObject
 {
+    @AppStorage("notes") private var notesData: Data?
+    
     @Published var notes: [Note] = []
     
     func addNote(title: String, content: String)
     {
         let newNote = Note(title: title, content: content)
         notes.append(newNote)
+        saveNotes()
     }
     
     func editNote(id: UUID, title: String, content: String)
@@ -31,6 +43,7 @@ class NotesViewModel: ObservableObject
             notes[index].title = title
             notes[index].content = content
         }
+        saveNotes()
     }
     
     func toggleCompletion(for note: Note)
@@ -38,6 +51,30 @@ class NotesViewModel: ObservableObject
         if let index = notes.firstIndex(where: { $0.id == note.id})
         {
             notes[index].isCompleted.toggle()
+        }
+        saveNotes()
+    }
+    
+    func loadNotes()
+    {
+        if let data = notesData
+        {
+            do {
+                let decodedNotes = try JSONDecoder().decode([Note].self, from: data)
+                self.notes = decodedNotes
+            } catch {
+                print("Failed to load notes: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    func saveNotes()
+    {
+        do {
+            let encodedData = try JSONEncoder().encode(notes)
+            notesData = encodedData
+        } catch {
+            print("Failed to save notes: \(error.localizedDescription)")
         }
     }
 }
@@ -69,6 +106,7 @@ struct ContentView: View {
                     }
                     .onDelete { indexSet in
                         viewModel.notes.remove(atOffsets: indexSet)
+                        viewModel.saveNotes()
                     }
                 }
             }
@@ -82,11 +120,6 @@ struct ContentView: View {
         }
     }
     
-    @State private var showingAddNoteAlert = false
-    
-    func showAddNoteAlert() {
-        showingAddNoteAlert.toggle()
-    }
 }
 
 struct NewNoteView: View {
